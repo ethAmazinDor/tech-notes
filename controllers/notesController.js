@@ -7,21 +7,23 @@ const asyncHandler = require('express-async-handler')
 //@access Private
 
 const getAllNotes = asyncHandler(async (req, res) => {
+    // Get all notes from MongoDB
     const notes = await Note.find().lean()
 
-    //check to see if we have notes 
+    // If no notes 
     if (!notes?.length) {
-        res.status(400).json({ message: 'no notes found' })
+        return res.status(400).json({ message: 'No notes found' })
     }
 
-    //add a username to each note before sending the response 
+    // Add username to each note before sending the response 
+    // See Promise.all with map() here: https://youtu.be/4lqJBBEpjRE 
+    // You could also do this with a for...of loop
     const notesWithUser = await Promise.all(notes.map(async (note) => {
         const user = await User.findById(note.user).lean().exec()
         return { ...note, username: user.username }
     }))
 
     res.json(notesWithUser)
-
 })
 
 //@desc create new note
@@ -33,13 +35,13 @@ const createNewNote = asyncHandler(async (req, res) => {
 
     //confirm data
     if (!user || !title || !text) {
-        res.status(400).json({ message: 'all fields required' })
+        return res.status(400).json({ message: 'all fields required' })
     }
 
-    const noteObject = { user, title, text }
+
 
     //create and store the new note
-    const note = await Note.create(noteObject)
+    const note = await Note.create({ user, title, text })
 
     if (note) {
         res.status(201).json({ message: 'note was created' })
@@ -57,14 +59,14 @@ const updateNote = asyncHandler(async (req, res) => {
     const { id, user, title, text, completed } = req.body
 
     //confirm data
-    if (!id || !user || !title || !text || !completed) {
-        res.status(400).json({ message: 'all fields required' })
+    if (!id || !user || !title || !text || typeof completed !== 'boolean') {
+        return res.status(400).json({ message: 'all fields required' })
     }
 
     const note = await Note.findById(id).exec()
 
     if (!note) {
-        res.status(400).json({ message: 'cannot find note' })
+        return res.status(400).json({ message: 'cannot find note' })
     }
 
     note.user = user
@@ -72,7 +74,7 @@ const updateNote = asyncHandler(async (req, res) => {
     note.text = text
     note.completed = completed
 
-    const updatedNote = await Note.save()
+    const updatedNote = await note.save()
 
     res.json({ message: `note for ${updatedNote.user} has been updated` })
 
@@ -85,13 +87,13 @@ const deleteNote = asyncHandler(async (req, res) => {
     const { id } = req.body
 
     if (!id) {
-        res.status(400).json({ message: 'id required ' })
+        return res.status(400).json({ message: 'id required ' })
     }
 
     const note = await Note.findById(id).exec()
 
     if (!note) {
-        res.status(400).json({ message: 'no notes to be deleted' })
+        return res.status(400).json({ message: 'no notes to be deleted' })
     }
 
     const result = await Note.deleteOne(note)
